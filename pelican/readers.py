@@ -15,7 +15,7 @@ import six
 from six.moves.html_parser import HTMLParser
 
 from pelican import rstdirectives  # NOQA
-from pelican import signals
+from pelican import signals, utils
 from pelican.cache import FileStampDataCacher
 from pelican.contents import Author, Category, Page, Tag
 from pelican.utils import SafeDatetime, escape_html, get_date, pelican_open, \
@@ -23,8 +23,11 @@ from pelican.utils import SafeDatetime, escape_html, get_date, pelican_open, \
 
 try:
     from markdown import Markdown
+    import rdflib
+    rdflib_loaded=True
 except ImportError:
     Markdown = False  # NOQA
+    rdflib_loaded=False
 
 # Metadata processors have no way to discard an unwanted value, so we have
 # them return this value instead to signal that it should be discarded later.
@@ -434,6 +437,34 @@ class HTMLReader(BaseReader):
             metadata[k] = self.process_metadata(k, parser.metadata[k])
         return parser.body, metadata
 
+class RdfReader(BaseReader):
+    
+    file_extensions = ['rdf', 'owl']
+    enabled = bool(rdflib_loaded)
+    
+    def __init__(self, *args, **kwargs):
+        super(RdfReader, self).__init__(*args, **kwargs)
+    
+    def tohtml(self, query_result):
+        res = ""
+        for row in query_result:
+            res = res + "<h1>"+str(row.o)+"</h1>"
+        return res
+
+    def read(self, source_path):
+        """Parse content and metadata of markdown files"""
+#         text = pelican_open(source_path)
+
+        graph = rdflib.Graph()
+        graph.load(source_path)
+        html = self.tohtml(graph.query('prefix owl:<http://www.w3.org/2002/07/owl#> select ?o ?license ?comment where { ?o rdf:type owl:Ontology; cc:license ?license; rdfs:comment ?comment.}'))
+        meta = {}
+        meta["tags"]=["ontology"]
+        meta["title"]="test-title"
+        meta["date"]=utils.get_date("2017-07-05")
+        meta["comment"]="This is a useful comment"
+        #meta["category"]=self.process_metadata("category", "vocabularies")
+        return html, meta
 
 class Readers(FileStampDataCacher):
     """Interface for all readers.

@@ -19,7 +19,8 @@ import six
 
 from pelican import signals
 from pelican.cache import FileStampDataCacher
-from pelican.contents import Article, Draft, Page, Static, is_valid_content
+from pelican.contents import Article, Draft, Page, Static, is_valid_content,\
+    Vocabulary
 from pelican.readers import Readers
 from pelican.utils import (DateFormatter, copy, mkdir_p, posixize_path,
                            process_translations, python_2_unicode_compatible)
@@ -600,6 +601,54 @@ class ArticlesGenerator(CachingGenerator):
         self.generate_pages(writer)
         signals.article_writer_finalized.send(self, writer=writer)
 
+class VocabularyGenerator(CachingGenerator):
+    """Generate vocabulary descriptions"""
+    
+    def __init__(self, *args, **kwargs):
+        self.vocabularies =[]
+        super(VocabularyGenerator, self).__init__(*args, **kwargs)
+        
+    def generate_context(self):
+        for f in self.get_files(self.settings['VOC_PATHS'], exclude=self.settings['VOC_EXCLUDES']):
+            voc = self.get_cached_data(f, None)
+            if voc is None:
+                try:
+                    voc = self.readers.read_file(
+                        base_path=self.path, path=f, content_class=Vocabulary,
+                        context=self.context,
+                        preread_signal=signals.voc_generator_preread,
+                        preread_sender=self,
+                        context_signal=signals.voc_generator_context,
+                        context_sender=self)
+                except Exception as e:
+                    logger.error(
+                        'Could not process %s\n%s', f, e,
+                        exc_info=self.settings.get('DEBUG', False))
+                    self._add_failed_source_path(f)
+                    continue
+                
+                if not is_valid_content(voc, f):
+                    self._add_failed_source_path(f)
+                    continue
+        
+                self.cache_data(f, voc)
+            
+            self.vocabularies.append(voc)
+            self.add_source_path(voc)
+        
+        self._update_context(('vocabularies',))
+        self.save_cache()
+        self.readers.save_cache()
+        signals.voc_generator_finalized.send(self)
+    
+    def generate_output(self, writer):
+        for voc in self.vocabularies:
+            writer.write_file(
+                voc.save_as, self.get_template(voc.template),
+                self.context, voc=voc,
+                relative_urls=self.settings['RELATIVE_URLS'],
+                override_output=hasattr(voc, 'override_save_as'))
+        signals.voc_writer_finalized.send(self, writer=writer)
 
 class PagesGenerator(CachingGenerator):
     """Generate pages"""
@@ -609,7 +658,7 @@ class PagesGenerator(CachingGenerator):
         self.hidden_pages = []
         self.hidden_translations = []
         super(PagesGenerator, self).__init__(*args, **kwargs)
-        signals.page_generator_init.send(self)
+        signals.voc_generator_init.send(self)
 
     def generate_context(self):
         all_pages = []

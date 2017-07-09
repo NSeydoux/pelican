@@ -18,7 +18,7 @@ from pelican.log import init  # noqa
 from pelican import signals
 from pelican.generators import (ArticlesGenerator, PagesGenerator,
                                 SourceFileGenerator, StaticGenerator,
-                                TemplatePagesGenerator)
+                                TemplatePagesGenerator, VocabularyGenerator)
 from pelican.readers import Readers
 from pelican.settings import read_settings
 from pelican.utils import (clean_output_dir, file_watcher,
@@ -38,6 +38,7 @@ class Pelican(object):
         Performs some checks on the environment before doing anything else.
         """
 
+        logger.setLevel(logging.DEBUG)
         # define the default settings
         self.settings = settings
         self._handle_deprecation()
@@ -214,7 +215,7 @@ class Pelican(object):
             time.time() - start_time))
 
     def get_generator_classes(self):
-        generators = [ArticlesGenerator, PagesGenerator]
+        generators = [ArticlesGenerator, PagesGenerator, VocabularyGenerator]
 
         if self.settings['TEMPLATE_PAGES']:
             generators.append(TemplatePagesGenerator)

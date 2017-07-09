@@ -13,3 +13,7 @@ tags
 htmlcov
 six-*.egg/
 *.orig
+.idea
+.project
+.pydevproject
+.settings/

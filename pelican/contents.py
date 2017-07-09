@@ -394,7 +394,10 @@ class Article(Page):
 class Draft(Page):
     mandatory_properties = ('title', 'category')
     default_template = 'article'
-
+    
+class Vocabulary(Page):
+    mandatory_properties = ('url','comment',)
+    default_template = 'vocabulary'
 
 class Quote(Page):
     base_properties = ('author', 'date')
