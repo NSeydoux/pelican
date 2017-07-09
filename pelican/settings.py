@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_THEME = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                              'themes', 'notmyidea')
+
+PELICAN_HOME = os.path.dirname(os.path.abspath(__file__))
+
 DEFAULT_CONFIG = {
     'PATH': os.curdir,
     'ARTICLE_PATHS': [''],

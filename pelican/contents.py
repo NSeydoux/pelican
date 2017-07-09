@@ -396,7 +396,7 @@ class Draft(Page):
     default_template = 'article'
     
 class Vocabulary(Page):
-    mandatory_properties = ('url','comment',)
+    mandatory_properties = ('iri','description','version', 'title')
     default_template = 'vocabulary'
 
 class Quote(Page):

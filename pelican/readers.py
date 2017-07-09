@@ -15,7 +15,7 @@ import six
 from six.moves.html_parser import HTMLParser
 
 from pelican import rstdirectives  # NOQA
-from pelican import signals, utils
+from pelican import signals, utils, settings
 from pelican.cache import FileStampDataCacher
 from pelican.contents import Author, Category, Page, Tag
 from pelican.utils import SafeDatetime, escape_html, get_date, pelican_open, \
@@ -444,27 +444,26 @@ class RdfReader(BaseReader):
     
     def __init__(self, *args, **kwargs):
         super(RdfReader, self).__init__(*args, **kwargs)
-    
-    def tohtml(self, query_result):
-        res = ""
-        for row in query_result:
-            res = res + "<h1>"+str(row.o)+"</h1>"
-        return res
 
     def read(self, source_path):
-        """Parse content and metadata of markdown files"""
-#         text = pelican_open(source_path)
+        """Parse content and metadata of an rdf file"""
 
         graph = rdflib.Graph()
         graph.load(source_path)
-        html = self.tohtml(graph.query('prefix owl:<http://www.w3.org/2002/07/owl#> select ?o ?license ?comment where { ?o rdf:type owl:Ontology; cc:license ?license; rdfs:comment ?comment.}'))
         meta = {}
-        meta["tags"]=["ontology"]
-        meta["title"]="test-title"
-        meta["date"]=utils.get_date("2017-07-05")
-        meta["comment"]="This is a useful comment"
-        #meta["category"]=self.process_metadata("category", "vocabularies")
-        return html, meta
+        with open(settings.PELICAN_HOME+"/sparql-queries/get_voc_metadata.sparql", "r") as query_file :
+            query = query_file.read()
+            # SPARQL projection attributes : ?iri ?license ?description ?version ?title
+            result_set = graph.query(query)
+            # For now, it is assumed that only one result matches. Otherwise, the 
+            # last matching result is arbitrarily chosen.
+            for result in result_set:
+                meta["iri"]=result.iri
+                meta["license"]=result.license
+                meta["description"]=result.description
+                meta["version"]=result.version
+                meta["title"]=result.title
+        return "", meta
 
 class Readers(FileStampDataCacher):
     """Interface for all readers.
