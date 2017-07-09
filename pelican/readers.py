@@ -447,7 +447,7 @@ class RdfReader(BaseReader):
 
     def read(self, source_path):
         """Parse content and metadata of an rdf file"""
-
+        logger.debug("Loadinf graph described in "+source_path)
         graph = rdflib.Graph()
         graph.load(source_path)
         meta = {}
@@ -455,6 +455,7 @@ class RdfReader(BaseReader):
             query = query_file.read()
             # SPARQL projection attributes : ?iri ?license ?description ?version ?title
             result_set = graph.query(query)
+            logger.debug(str(len(result_set))+" matches found for metadata query (should be one)")
             # For now, it is assumed that only one result matches. Otherwise, the 
             # last matching result is arbitrarily chosen.
             for result in result_set:

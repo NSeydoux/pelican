@@ -11,13 +11,13 @@ from collections import defaultdict
 from functools import partial
 from itertools import chain, groupby
 from operator import attrgetter
-
+import requests
 from jinja2 import (BaseLoader, ChoiceLoader, Environment, FileSystemLoader,
                     PrefixLoader, TemplateNotFound)
 
 import six
 
-from pelican import signals
+from pelican import signals, settings
 from pelican.cache import FileStampDataCacher
 from pelican.contents import Article, Draft, Page, Static, is_valid_content,\
     Vocabulary
@@ -604,38 +604,61 @@ class ArticlesGenerator(CachingGenerator):
 class VocabularyGenerator(CachingGenerator):
     """Generate vocabulary descriptions"""
     
+    # temporary file where the vocabulary is dereferenced to
+    # when collected online
+    _local_vocabulary_path = "/tmp/"
+    
     def __init__(self, *args, **kwargs):
         self.vocabularies =[]
         super(VocabularyGenerator, self).__init__(*args, **kwargs)
-        
-    def generate_context(self):
-        for f in self.get_files(self.settings['VOC_PATHS'], exclude=self.settings['VOC_EXCLUDES']):
-            voc = self.get_cached_data(f, None)
-            if voc is None:
-                try:
-                    voc = self.readers.read_file(
-                        base_path=self.path, path=f, content_class=Vocabulary,
-                        context=self.context,
-                        preread_signal=signals.voc_generator_preread,
-                        preread_sender=self,
-                        context_signal=signals.voc_generator_context,
-                        context_sender=self)
-                except Exception as e:
-                    logger.error(
-                        'Could not process %s\n%s', f, e,
-                        exc_info=self.settings.get('DEBUG', False))
-                    self._add_failed_source_path(f)
-                    continue
-                
-                if not is_valid_content(voc, f):
-                    self._add_failed_source_path(f)
-                    continue
-        
-                self.cache_data(f, voc)
+    
+    def generate_vocabulary_context(self, vocabulary_file_name, path_to_vocabulary):
+        logger.debug("Generating vocabulary context for "+vocabulary_file_name)
+        voc = self.get_cached_data(vocabulary_file_name, None)
+        if voc is None:
+            try:
+                voc = self.readers.read_file(
+                    base_path=path_to_vocabulary, path=vocabulary_file_name, content_class=Vocabulary,
+                    context=self.context,
+                    preread_signal=signals.voc_generator_preread,
+                    preread_sender=self,
+                    context_signal=signals.voc_generator_context,
+                    context_sender=self)
+            except Exception as e:
+                logger.error(
+                    'Could not process %s\n%s', vocabulary_file_name, e,
+                    exc_info=self.settings.get('DEBUG', False))
+                self._add_failed_source_path(vocabulary_file_name)
             
-            self.vocabularies.append(voc)
-            self.add_source_path(voc)
+            if not is_valid_content(voc, vocabulary_file_name):
+                self._add_failed_source_path(vocabulary_file_name)
+    
+            self.cache_data(vocabulary_file_name, voc)
         
+        self.vocabularies.append(voc)
+        self.add_source_path(voc)
+            
+    def generate_local_context(self):
+        for f in self.get_files(self.settings['VOC_PATHS'], exclude=self.settings['VOC_EXCLUDES']):
+            self.generate_vocabulary_context(f, self.path)
+    
+    def dereference(self, uri, local_file):
+        logger.debug("Dereferencing "+uri+" into "+local_file)
+        headers={"Accept":"application/rdf+xml"}
+        r = requests.get(uri, headers=headers)
+        with open(self._local_vocabulary_path+local_file, 'w') as f:
+            f.write(r.text)
+    
+    def generate_remote_context(self):
+        for uri in self.settings["VOC_URIS"]:
+            logger.debug("Generating context for remote "+uri)
+            local_name = uri.split("/")[-1]+".rdf"
+            self.dereference(uri, local_name)
+            self.generate_vocabulary_context(local_name, self._local_vocabulary_path)
+    
+    def generate_context(self):
+        self.generate_local_context()
+        self.generate_remote_context()
         self._update_context(('vocabularies',))
         self.save_cache()
         self.readers.save_cache()

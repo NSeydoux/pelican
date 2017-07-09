@@ -39,6 +39,7 @@ DEFAULT_CONFIG = {
     'PAGE_PATHS': ['pages'],
     'PAGE_EXCLUDES': [],
     'VOC_PATHS':['ontologies'],
+    'VOC_URIS':[],
     'VOC_EXCLUDES':[],
     'THEME': DEFAULT_THEME,
     'OUTPUT_PATH': 'output',
